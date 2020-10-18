@@ -1,6 +1,7 @@
 SRC_PATH = .
 SRCS     = $(wildcard $(SRC_PATH)/*.c)
 OBJS     = $(SRCS:.c=.o)
+HEADERS  = $(wildcard $(SRC_PATH)/*.h)
 TARGET   = server
 
 CC      = gcc
@@ -15,8 +16,8 @@ all: $(TARGET)
 $(TARGET): $(OBJS) $(LIBS)
 	$(CC) $(CFLAGS) -o $(TARGET) $^ $(LDFLAGS)
 
-%.o: %.c
-	$(CC) -c $(CFLAGS) $(INCLUDE) $^
+%.o: %.c $(HEADERS)
+	$(CC) -c $(CFLAGS) $(INCLUDE) $<
 
 clean:
 	rm -f *.o

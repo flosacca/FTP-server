@@ -2,7 +2,10 @@
 #define FTP_DATA_H
 
 #include <netinet/in.h>
+#include "ftp_def.h"
 
-void send_list(struct sockaddr_in* addr, const char* path, int conn);
+int ftp_connect(int sess, struct ftp_state* state, int (*ready)(int, void*));
+
+int ftp_send_list(int data, void* arg);
 
 #endif
