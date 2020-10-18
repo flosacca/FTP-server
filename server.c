@@ -17,7 +17,7 @@
 void connection_handler(int conn) {
     char buf[BUFFER_SIZE + 1];
     struct ftp_state state = {0};
-    write_line(conn, "200 FTP server is ready.");
+    ftp_send(conn, "200 FTP serv is ready.");
     while (1) {
         int pos = 0;
         while (pos < BUFFER_SIZE) {
@@ -49,20 +49,20 @@ void* connection_thread(void* arg) {
 }
 
 int main(int argc, char** argv) {
-    int server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    assert(server != -1);
+    int serv = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    assert(serv != -1);
     struct sockaddr_in addr = {AF_INET, htons(21), htonl(INADDR_ANY)};
-    assert_success(bind(server, (struct sockaddr*)&addr, sizeof addr));
-    assert_success(listen(server, 5));
+    assert(0 == bind(serv, (struct sockaddr*)&addr, sizeof addr));
+    assert(0 == listen(serv, 5));
     pthread_attr_t attr;
-    assert_success(pthread_attr_init(&attr));
+    assert(0 == pthread_attr_init(&attr));
     while (1) {
-        int conn = accept(server, NULL, NULL);
+        int conn = accept(serv, NULL, NULL);
         if (conn == -1) {
             continue;
         }
         pthread_t* thread = malloc(sizeof(pthread_t));
-        assert_success(pthread_create(thread, &attr, connection_thread, &conn));
+        assert(0 == pthread_create(thread, &attr, connection_thread, &conn));
     }
     return 0;
 }

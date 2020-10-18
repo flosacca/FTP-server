@@ -8,7 +8,7 @@ LIBS    =
 LDFLAGS = -lpthread
 DEFINES = -DDEBUG
 INCLUDE = -I.
-CFLAGS  = -O2 $(DEFINES)
+CFLAGS  = -O2 -Werror-implicit-function-declaration $(DEFINES)
 
 all: $(TARGET)
 

@@ -2,32 +2,54 @@
 #include <regex.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include "util.h"
 
-inline void assert_success(int s) {
-    assert(s == 0);
-}
-
-inline int re_match(const char* source, const char* pattern, size_t n, regmatch_t* matches, int eflags) {
+inline int re_match(const char* s, const char* pattern, size_t n, regmatch_t* match, int eflags) {
     regex_t regex;
     regcomp(&regex, pattern, REG_EXTENDED | eflags);
-    int s = regexec(&regex, source, n, matches, 0);
+    int res = regexec(&regex, s, n, match, 0);
     regfree(&regex);
-    return s == 0;
+    return res == 0;
 }
 
-inline int re_include(const char* source, const char* pattern, int eflags) {
-    return re_match(source, pattern, 0, NULL, REG_NOSUB | eflags);
+inline int re_include(const char* s, const char* pattern, int eflags) {
+    return re_match(s, pattern, 0, NULL, REG_NOSUB | eflags);
 }
 
-inline int write_line(int fd, const char* s) {
-    int l = strlen(s);
-    char* t = malloc(l + 2);
-    memcpy(t, s, l);
-    t[l] = '\r';
-    t[l + 1] = '\n';
-    int n = write(fd, t, l + 2);
-    free(t);
-    return n;
+inline int ftp_write(int fd, const char* buf, int size) {
+    int i = 0;
+    while (i < size) {
+        int n = write(fd, buf + i, size - i);
+        if (n == -1) {
+            return -1;
+        }
+        i += n;
+    }
+    return 0;
+}
+
+inline int ftp_send(int fd, const char* s) {
+    int n = strlen(s);
+    char* buf = malloc(n + 2);
+    memcpy(buf, s, n);
+    buf[n] = '\r';
+    buf[n + 1] = '\n';
+    int res = ftp_write(fd, buf, n + 2);
+    free(buf);
+    return res;
+}
+
+inline char* str_new(const char* s) {
+    int n = strlen(s);
+    char* t = malloc(n + 1);
+    strcpy(t, s);
+    return t;
+}
+
+inline char* str_add(char* t, const char* s) {
+    int n1 = strlen(t);
+    int n2 = strlen(s);
+    t = realloc(t, n1 + n2 + 1);
+    strcpy(t + n1, s);
+    return t;
 }
