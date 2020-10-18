@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include "util.h"
 #include "ftp_cmd.h"
 
@@ -52,10 +53,22 @@ int ftp_command_handler(int conn, const char* cmd, struct ftp_state* state) {
         write_line(conn, "502 Command not implemented.");
         return FTP_CMD_REIN;
     }
+
     if (re_include(cmd, "^PORT\\>", REG_ICASE)) {
-        write_line(conn, "502 Command not implemented.");
+        regmatch_t m[7];
+        uint8_t a[6] = {0};
+        re_match(cmd, "^[^ ]+\\> .*\\<([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+)\\>.*\r\n", 7, m, 0);
+        for (int i = 0; i < 6; ++i) {
+            for (int j = m[i].rm_so; j < m[i].rm_eo; ++j) {
+                a[i] = a[i] * 10 + cmd[j] - '0';
+            }
+        }
+        state->port_addr.sin_family = AF_INET;
+        state->port_addr.sin_port = htons(a[4] << 8 | a[5]);
+        state->port_addr.sin_addr.s_addr = htonl(a[0] << 24 | a[1] << 16 | a[2] << 8 | a[3]);
         return FTP_CMD_PORT;
     }
+
     if (re_include(cmd, "^PASV\\>", REG_ICASE)) {
         write_line(conn, "502 Command not implemented.");
         return FTP_CMD_PASV;

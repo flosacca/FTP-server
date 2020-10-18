@@ -15,7 +15,7 @@ all: $(TARGET)
 $(TARGET): $(OBJS) $(LIBS)
 	$(CC) $(CFLAGS) -o $(TARGET) $^ $(LDFLAGS)
 
-$(OBJS): $(SRCS)
+%.o: %.c
 	$(CC) -c $(CFLAGS) $(INCLUDE) $^
 
 clean:
