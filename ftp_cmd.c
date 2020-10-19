@@ -1,14 +1,11 @@
 #include <arpa/inet.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
 #include "util.h"
 #include "ftp_data.h"
 #include "ftp_cmd.h"
 
 int ftp_command_handler(int sess, const char* cmd, struct ftp_state* state) {
     if (re_include(cmd, "^USER\\>", REG_ICASE)) {
-        if (re_include(cmd, "^[^ ]+\\>( anonymous|.*)?\r\n$", 0)) {
+        if (re_include(cmd, "^[^ ]+\\>( anonymous\\>|.*)?", 0)) {
             ftp_send(sess, "331 Specifiy an email address as password.");
         } else {
             ftp_send(sess, "504 User must be anonymous.");
@@ -61,7 +58,7 @@ int ftp_command_handler(int sess, const char* cmd, struct ftp_state* state) {
     if (re_include(cmd, "^PORT\\>", REG_ICASE)) {
         regmatch_t m[7];
         uint8_t a[6] = {0};
-        re_match(cmd, "^[^ ]+\\> .*\\<([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+)\\>.*\r\n", 7, m, 0);
+        re_match(cmd, "^[^ ]+\\> .*\\<([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+)\\>", 7, m, 0);
         for (int i = 0; i < 6; ++i) {
             for (int j = m[i + 1].rm_so; j < m[i + 1].rm_eo; ++j) {
                 a[i] = a[i] * 10 + cmd[j] - '0';
@@ -80,7 +77,7 @@ int ftp_command_handler(int sess, const char* cmd, struct ftp_state* state) {
     }
 
     if (re_include(cmd, "^TYPE\\>", REG_ICASE)) {
-        if (re_include(cmd, "^TYPE I\r\n", REG_ICASE)) {
+        if (re_include(cmd, "^TYPE I\\>", REG_ICASE)) {
             ftp_send(sess, "200 Type set to I.");
         } else {
             ftp_send(sess, "504 Type must be set to I.");
@@ -150,7 +147,6 @@ int ftp_command_handler(int sess, const char* cmd, struct ftp_state* state) {
     }
 
     if (re_include(cmd, "^(LIST|NLST)\\>", REG_ICASE)) {
-        *strchr(cmd, '\r') = 0;
         state->msg_ready = "150 Here comes the directory listing.";
         state->msg_ok = "226 Directory send OK.";
         state->arg = str_add(str_new(cmd[0] == 'L' ? "-l" : "-1"), cmd + 4);

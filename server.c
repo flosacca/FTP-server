@@ -3,11 +3,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <unistd.h>
 #include <pthread.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
 #include <assert.h>
 #include "util.h"
 #include "ftp_cmd.h"
@@ -27,16 +23,26 @@ void connection_handler(int conn) {
                 close(conn);
                 return;
             }
-            pos += n;
-            if (buf[pos - 1] == '\n') {
-                break;
+            if (n > 0) {
+                pos += n;
+                if (buf[pos - 1] == '\n') {
+                    break;
+                }
             }
         }
         buf[pos] = 0;
+        if (!re_include(buf, "^[A-Za-z]+[^\r\n]*\r\n$", 0)) {
+            ftp_send(conn, "500 Unknown command.");
+            continue;
+        }
         fwrite(buf, 1, pos, stdout);
-        state.last_cmd = ftp_command_handler(conn, buf, &state);
-        if (state.last_cmd == FTP_CMD_QUIT || state.last_cmd == FTP_CMD_ABOR) {
+        buf[pos - 2] = 0;
+        int res = ftp_command_handler(conn, buf, &state);
+        if (res == FTP_CMD_QUIT || res == FTP_CMD_ABOR) {
             break;
+        }
+        if (res != FTP_CMD_NONE) {
+            state.last_cmd = res;
         }
     }
     close(conn);
