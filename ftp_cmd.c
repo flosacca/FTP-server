@@ -1,12 +1,14 @@
 #include <arpa/inet.h>
+#include <assert.h>
 #include "util.h"
-#include "ftp_data.h"
+#include "ftp_socket.h"
 #include "ftp_cmd.h"
 
 int ftp_command_handler(int sess, const char* cmd, struct ftp_state* state) {
     if (re_include(cmd, "^USER\\>", REG_ICASE)) {
         if (re_include(cmd, "^[^ ]+\\>( anonymous\\>|.*)?", 0)) {
             ftp_send(sess, "331 Specifiy an email address as password.");
+            state->user = 0;
         } else {
             ftp_send(sess, "504 User must be anonymous.");
         }
@@ -14,12 +16,12 @@ int ftp_command_handler(int sess, const char* cmd, struct ftp_state* state) {
     }
 
     if (re_include(cmd, "^PASS\\>", REG_ICASE)) {
-        if (state->loggedin) {
+        if (state->user > 0) {
             ftp_send(sess, "230 Already logged in.");
-        } else if (state->last_cmd != FTP_CMD_USER) {
+        } else if (state->user < 0) {
             ftp_send(sess, "503 Login with USER first.");
         } else {
-            state->loggedin = 1;
+            state->user = 1;
             ftp_send(sess, "230 Login successful.");
         }
         return FTP_CMD_PASS;
@@ -29,7 +31,7 @@ int ftp_command_handler(int sess, const char* cmd, struct ftp_state* state) {
         return FTP_CMD_QUIT;
     }
 
-    if (!state->loggedin) {
+    if (state->user <= 0) {
         ftp_send(sess, "503 Login with USER and PASS first.");
         return FTP_CMD_NONE;
     }
@@ -64,15 +66,22 @@ int ftp_command_handler(int sess, const char* cmd, struct ftp_state* state) {
                 a[i] = a[i] * 10 + cmd[j] - '0';
             }
         }
-        state->port_addr.sin_family = AF_INET;
-        state->port_addr.sin_port = htons(a[4] << 8 | a[5]);
-        state->port_addr.sin_addr.s_addr = htonl(a[0] << 24 | a[1] << 16 | a[2] << 8 | a[3]);
+        static struct sockaddr_in addr = {AF_INET};
+        addr.sin_port = htons(a[4] << 8 | a[5]);
+        addr.sin_addr.s_addr = htonl(a[0] << 24 | a[1] << 16 | a[2] << 8 | a[3]);
+        state->port_addr = &addr;
         ftp_send(sess, "200 PORT command successful.");
         return FTP_CMD_PORT;
     }
 
     if (re_include(cmd, "^PASV\\>", REG_ICASE)) {
-        ftp_send(sess, "502 Command not implemented.");
+        state->pasv_fd = ftp_listen(0);
+        assert(state->pasv_fd != -1);
+        uint32_t a = get_sock_addr(sess);
+        uint16_t p = get_sock_port(state->pasv_fd);
+        char msg[64];
+        sprintf(msg, "227 Entering Passive Mode (%d,%d,%d,%d,%d,%d).", a >> 24, a >> 16 & 255, a >> 8 & 255, a & 255, p >> 8, p & 255);
+        ftp_send(sess, msg);
         return FTP_CMD_PASV;
     }
 
@@ -150,18 +159,18 @@ int ftp_command_handler(int sess, const char* cmd, struct ftp_state* state) {
         state->msg_ready = "150 Here comes the directory listing.";
         state->msg_ok = "226 Directory send OK.";
         state->arg = str_add(str_new(cmd[0] == 'L' ? "-l" : "-1"), cmd + 4);
-        switch (state->last_cmd) {
-        case FTP_CMD_PORT:
+        if (state->port_addr != NULL) {
             if (0 != ftp_connect(sess, state, ftp_send_list)) {
                 ftp_send(sess, "425 Failed to establish connection.");
             }
-            break;
-        case FTP_CMD_PASV:
-            /* ftp_accept(state, ftp_send_list); */
-            break;
-        default:
+            state->port_addr = NULL;
+        } else if (state->pasv_fd != -1) {
+            if (0 != ftp_accept(sess, state, ftp_send_list)) {
+                ftp_send(sess, "425 Failed to establish connection.");
+            }
+            state->pasv_fd = -1;
+        } else {
             ftp_send(sess, "425 Use PORT or PASV first.");
-            break;
         }
         free(state->arg);
         return FTP_CMD_LIST;

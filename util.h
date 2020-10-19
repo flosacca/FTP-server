@@ -19,6 +19,21 @@ static inline int re_include(const char* s, const char* pattern, int eflags) {
     return re_match(s, pattern, 0, NULL, REG_NOSUB | eflags);
 }
 
+static inline char* str_new(const char* s) {
+    int n = strlen(s);
+    char* t = malloc(n + 1);
+    strcpy(t, s);
+    return t;
+}
+
+static inline char* str_add(char* t, const char* s) {
+    int n1 = strlen(t);
+    int n2 = strlen(s);
+    t = realloc(t, n1 + n2 + 1);
+    strcpy(t + n1, s);
+    return t;
+}
+
 static inline int ftp_write(int fd, const char* buf, int size) {
     int i = 0;
     while (i < size) {
@@ -40,21 +55,6 @@ static inline int ftp_send(int fd, const char* s) {
     int res = ftp_write(fd, buf, n + 2);
     free(buf);
     return res;
-}
-
-static inline char* str_new(const char* s) {
-    int n = strlen(s);
-    char* t = malloc(n + 1);
-    strcpy(t, s);
-    return t;
-}
-
-static inline char* str_add(char* t, const char* s) {
-    int n1 = strlen(t);
-    int n2 = strlen(s);
-    t = realloc(t, n1 + n2 + 1);
-    strcpy(t + n1, s);
-    return t;
 }
 
 #endif

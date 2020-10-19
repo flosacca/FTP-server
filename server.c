@@ -1,11 +1,8 @@
-#include <sys/types.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 #include <pthread.h>
 #include <assert.h>
 #include "util.h"
+#include "ftp_socket.h"
 #include "ftp_cmd.h"
 
 #define BUFFER_SIZE 4096
@@ -13,7 +10,8 @@
 void connection_handler(int conn) {
     char buf[BUFFER_SIZE + 1];
     struct ftp_state state = {0};
-    ftp_send(conn, "200 FTP serv is ready.");
+    state.pasv_fd = -1;
+    ftp_send(conn, "200 FTP server is ready.");
     while (1) {
         int pos = 0;
         while (pos < BUFFER_SIZE) {
@@ -37,12 +35,9 @@ void connection_handler(int conn) {
         }
         fwrite(buf, 1, pos, stdout);
         buf[pos - 2] = 0;
-        int res = ftp_command_handler(conn, buf, &state);
-        if (res == FTP_CMD_QUIT || res == FTP_CMD_ABOR) {
+        int cmd = ftp_command_handler(conn, buf, &state);
+        if (cmd == FTP_CMD_QUIT || cmd == FTP_CMD_ABOR) {
             break;
-        }
-        if (res != FTP_CMD_NONE) {
-            state.last_cmd = res;
         }
     }
     close(conn);
@@ -55,11 +50,8 @@ void* connection_thread(void* arg) {
 }
 
 int main(int argc, char** argv) {
-    int serv = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    int serv = ftp_listen(21);
     assert(serv != -1);
-    struct sockaddr_in addr = {AF_INET, htons(21), htonl(INADDR_ANY)};
-    assert(0 == bind(serv, (struct sockaddr*)&addr, sizeof addr));
-    assert(0 == listen(serv, 5));
     pthread_attr_t attr;
     assert(0 == pthread_attr_init(&attr));
     while (1) {

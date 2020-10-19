@@ -4,9 +4,9 @@
 #include <netinet/in.h>
 
 struct ftp_state {
-    int last_cmd;
-    int loggedin;
-    struct sockaddr_in port_addr;
+    int user;
+    struct sockaddr_in* port_addr;
+    int pasv_fd;
     const char* msg_ready;
     const char* msg_ok;
     void* arg;
