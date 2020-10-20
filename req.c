@@ -45,8 +45,8 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
 
     if (re_include(req, "^USER\\>", REG_ICASE)) {
         if (re_include(req, "^[^ ]+\\>( anonymous\\>|.*)?", 0)) {
-            ftp_send(sess, "331 Specifiy an email address as password.");
             state->user = 0;
+            ftp_send(sess, "331 Specifiy an email address as password.");
         } else {
             ftp_send(sess, "504 User must be anonymous.");
         }
@@ -85,8 +85,8 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
         if (path[0]) {
             path = real_path(state, path);
             if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-                ftp_send(sess, "250 Directory successfully changed.");
                 str_chomp(strcpy(state->dir, path + strlen(root_dir)), '/');
+                ftp_send(sess, "250 Directory successfully changed.");
             } else {
                 ftp_send(sess, "550 Failed to change directory.");
             }
@@ -97,13 +97,19 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^CDUP\\>", REG_ICASE)) {
-        ftp_send(sess, "502 Command not implemented.");
+        char* s = strrchr(state->dir, '/');
+        if (s != NULL) {
+            *s = 0;
+        }
+        ftp_send(sess, "250 Directory successfully changed.");
         return FTP_CMD_CDUP;
     }
+
     if (re_include(req, "^SMNT\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_SMNT;
     }
+
     if (re_include(req, "^REIN\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_REIN;
@@ -120,6 +126,9 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^PASV\\>", REG_ICASE)) {
+        if (state->pasv_fd != -1) {
+            close(state->pasv_fd);
+        }
         state->pasv_fd = ftp_listen(0);
         assert(state->pasv_fd != -1);
         uint32_t a = get_sock_addr(sess);
@@ -142,54 +151,67 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_STRU;
     }
+
     if (re_include(req, "^MODE\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_MODE;
     }
+
     if (re_include(req, "^RETR\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_RETR;
     }
+
     if (re_include(req, "^STOR\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_STOR;
     }
+
     if (re_include(req, "^STOU\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_STOU;
     }
+
     if (re_include(req, "^APPE\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_APPE;
     }
+
     if (re_include(req, "^ALLO\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_ALLO;
     }
+
     if (re_include(req, "^REST\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_REST;
     }
+
     if (re_include(req, "^RNFR\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_RNFR;
     }
+
     if (re_include(req, "^RNTO\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_RNTO;
     }
+
     if (re_include(req, "^ABOR\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_ABOR;
     }
+
     if (re_include(req, "^DELE\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_DELE;
     }
+
     if (re_include(req, "^RMD\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_RMD;
     }
+
     if (re_include(req, "^MKD\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_MKD;
@@ -240,12 +262,14 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_STAT;
     }
+
     if (re_include(req, "^HELP\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_HELP;
     }
+
     if (re_include(req, "^NOOP\\>", REG_ICASE)) {
-        ftp_send(sess, "502 Command not implemented.");
+        ftp_send(sess, "200 NOOP ok.");
         return FTP_CMD_NOOP;
     }
 }
