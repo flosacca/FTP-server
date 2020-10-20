@@ -1,21 +1,24 @@
 #include <sys/socket.h>
 #include <pthread.h>
+#include <getopt.h>
 #include <assert.h>
 #include "util.h"
-#include "ftp_socket.h"
-#include "ftp_cmd.h"
+#include "sock.h"
+#include "req.h"
 
-#define BUFFER_SIZE 4096
+char root_dir[PATH_MAX];
 
 void connection_handler(int conn) {
-    char buf[BUFFER_SIZE + 1];
+    char buf[PIPE_BUF];
+    char dir[PATH_MAX];
     struct ftp_state state = {0};
     state.pasv_fd = -1;
+    state.dir = strcpy(dir, "/");
     ftp_send(conn, "200 FTP server is ready.");
     while (1) {
         int pos = 0;
-        while (pos < BUFFER_SIZE) {
-            int n = read(conn, buf + pos, BUFFER_SIZE - pos);
+        while (pos < sizeof buf - 1) {
+            int n = read(conn, buf + pos, sizeof buf - 1 - pos);
             if (n == -1) {
                 puts("Failed to read connection.");
                 close(conn);
@@ -35,7 +38,7 @@ void connection_handler(int conn) {
         }
         fwrite(buf, 1, pos, stdout);
         buf[pos - 2] = 0;
-        int cmd = ftp_command_handler(conn, buf, &state);
+        int cmd = ftp_request_handler(conn, buf, &state);
         if (cmd == FTP_CMD_QUIT || cmd == FTP_CMD_ABOR) {
             break;
         }
@@ -50,7 +53,27 @@ void* connection_thread(void* arg) {
 }
 
 int main(int argc, char** argv) {
-    int serv = ftp_listen(21);
+    uint16_t port = 21;
+    struct option opts[3] = {
+        { "root", 1, NULL, 'r' },
+        { "port", 1, NULL, 'p' },
+    };
+    while (1) {
+        int opt = getopt_long(argc, argv, "", opts, NULL);
+        if (opt == -1) {
+            break;
+        }
+        switch (opt) {
+        case 'r':
+            strncpy(root_dir, optarg, sizeof root_dir - 1);
+            break;
+        case 'p':
+            port = atoi(optarg);
+            break;
+        }
+    }
+
+    int serv = ftp_listen(port);
     assert(serv != -1);
     pthread_attr_t attr;
     assert(0 == pthread_attr_init(&attr));

@@ -1,7 +1,7 @@
 #ifndef FTP_CMD_H
 #define FTP_CMD_H
 
-#include "ftp_def.h"
+#include "def.h"
 
 #define FTP_CMD_NONE 0
 #define FTP_CMD_USER 1
@@ -38,6 +38,6 @@
 #define FTP_CMD_HELP 32
 #define FTP_CMD_NOOP 33
 
-int ftp_command_handler(int sess, const char* cmd, struct ftp_state* state);
+int ftp_request_handler(int sess, const char* cmd, struct ftp_state* state);
 
 #endif

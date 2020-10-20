@@ -3,6 +3,8 @@
 
 #include <unistd.h>
 #include <regex.h>
+#include <limits.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,19 +21,16 @@ static inline int re_include(const char* s, const char* pattern, int eflags) {
     return re_match(s, pattern, 0, NULL, REG_NOSUB | eflags);
 }
 
-static inline char* str_new(const char* s) {
+static inline char* str_chomp(char* s, char c) {
     int n = strlen(s);
-    char* t = malloc(n + 1);
-    strcpy(t, s);
-    return t;
-}
-
-static inline char* str_add(char* t, const char* s) {
-    int n1 = strlen(t);
-    int n2 = strlen(s);
-    t = realloc(t, n1 + n2 + 1);
-    strcpy(t + n1, s);
-    return t;
+    char v = c ? c : '\n';
+    if (n > 0 && s[n - 1] == v) {
+        s[--n] = 0;
+        if (c == 0 && n > 0 && s[n - 1] == '\r') {
+            s[--n] = 0;
+        }
+    }
+    return s;
 }
 
 static inline int ftp_write(int fd, const char* buf, int size) {

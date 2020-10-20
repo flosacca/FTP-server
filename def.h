@@ -10,6 +10,7 @@ struct ftp_state {
     const char* msg_ready;
     const char* msg_ok;
     void* arg;
+    char* dir;
 };
 
 #endif

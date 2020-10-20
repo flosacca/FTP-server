@@ -2,7 +2,7 @@ SRC_PATH = .
 SRCS     = $(wildcard $(SRC_PATH)/*.c)
 OBJS     = $(SRCS:.c=.o)
 HEADERS  = $(wildcard $(SRC_PATH)/*.h)
-TARGET   = server
+TARGET   = main
 
 CC      = gcc
 LIBS    =

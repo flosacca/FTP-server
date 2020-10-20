@@ -4,7 +4,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include "util.h"
-#include "ftp_def.h"
+#include "def.h"
 
 #define ASSERT(c) \
     do { if (!(c)) return -1; } while (0)
@@ -59,11 +59,11 @@ static inline int ftp_accept(int sess, struct ftp_state* state, int (*ready)(int
 }
 
 static inline int ftp_send_list(int data, void* arg) {
-    char buf[1024];
-    char* shell_cmd = str_add(str_new("/bin/ls "), (char*)arg);
-    puts(shell_cmd);
-    FILE* pipe = popen(shell_cmd, "r");
-    free(shell_cmd);
+    static char buf[PATH_MAX + 128];
+    static char cmd[PATH_MAX + 128];
+    sprintf(cmd, "/bin/ls %s", (char*)arg);
+    puts(cmd);
+    FILE* pipe = popen(cmd, "r");
     ASSERT(pipe != NULL);
     int res = 0;
     while (fgets(buf, sizeof buf, pipe)) {
