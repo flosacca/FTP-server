@@ -3,8 +3,8 @@
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include "util.h"
 #include "def.h"
+#include "util.h"
 
 #define ASSERT(c) \
     do { if (!(c)) return -1; } while (0)
@@ -60,8 +60,7 @@ static inline int ftp_accept(int sess, struct ftp_state* state, int (*ready)(int
 
 static inline int ftp_send_list(int data, void* arg) {
     static char buf[PATH_MAX + 128];
-    static char cmd[PATH_MAX + 128];
-    sprintf(cmd, "/bin/ls %s", (char*)arg);
+    char* cmd = arg;
     puts(cmd);
     FILE* pipe = popen(cmd, "r");
     ASSERT(pipe != NULL);

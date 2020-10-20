@@ -1,13 +1,47 @@
+#include <sys/stat.h>
 #include <arpa/inet.h>
 #include <assert.h>
 #include "util.h"
 #include "sock.h"
 #include "req.h"
 
+extern char root_dir[];
+
+static inline uint8_t* req_addr(const char* req) {
+    static uint8_t a[6];
+    regmatch_t m[7];
+    re_match(req, "^[^ ]+\\> .*\\<([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+)\\>", 7, m, 0);
+    for (int i = 0; i < 6; ++i) {
+        a[i] = 0;
+        for (int j = m[i + 1].rm_so; j < m[i + 1].rm_eo; ++j) {
+            a[i] = a[i] * 10 + req[j] - '0';
+        }
+    }
+    return a;
+}
+
+static inline const char* req_arg(const char* req) {
+    regmatch_t m[2];
+    const char* s = "";
+    if (re_match(req, "^[^ ]+\\> *([^ ].*)", 2, m, 0)) {
+        s = req + m[1].rm_so;
+    }
+    return s;
+}
+
+static inline char* real_path(struct ftp_state* state, const char* path) {
+    static char s[PATH_MAX];
+    if (path[0] == '/') {
+        sprintf(s, "%s%s", root_dir, path);
+    } else {
+        sprintf(s, "%s%s/%s", root_dir, state->dir, path);
+    }
+    return s;
+}
+
 int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
     char msg[PATH_MAX + 128];
     char cmd[PATH_MAX + 128];
-    char arg[128];
 
     if (re_include(req, "^USER\\>", REG_ICASE)) {
         if (re_include(req, "^[^ ]+\\>( anonymous\\>|.*)?", 0)) {
@@ -44,10 +78,24 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_ACCT;
     }
+
     if (re_include(req, "^CWD\\>", REG_ICASE)) {
-        ftp_send(sess, "502 Command not implemented.");
+        struct stat st;
+        const char* path = req_arg(req);
+        if (path[0]) {
+            path = real_path(state, path);
+            if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
+                ftp_send(sess, "250 Directory successfully changed.");
+                str_chomp(strcpy(state->dir, path + strlen(root_dir)), '/');
+            } else {
+                ftp_send(sess, "550 Failed to change directory.");
+            }
+        } else {
+            ftp_send(sess, "501 You must specify a directory.");
+        }
         return FTP_CMD_CWD;
     }
+
     if (re_include(req, "^CDUP\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_CDUP;
@@ -62,15 +110,8 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^PORT\\>", REG_ICASE)) {
-        regmatch_t m[7];
-        uint8_t a[6] = {0};
-        re_match(req, "^[^ ]+\\> .*\\<([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+)\\>", 7, m, 0);
-        for (int i = 0; i < 6; ++i) {
-            for (int j = m[i + 1].rm_so; j < m[i + 1].rm_eo; ++j) {
-                a[i] = a[i] * 10 + req[j] - '0';
-            }
-        }
         static struct sockaddr_in addr = {AF_INET};
+        uint8_t* a = req_addr(req);
         addr.sin_port = htons(a[4] << 8 | a[5]);
         addr.sin_addr.s_addr = htonl(a[0] << 24 | a[1] << 16 | a[2] << 8 | a[3]);
         state->port_addr = &addr;
@@ -155,7 +196,7 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^PWD\\>", REG_ICASE)) {
-        sprintf(msg, "257 \"%s\" is the current directory.", state->dir);
+        sprintf(msg, "257 \"%s\" is the current directory.", state->dir[0] ? state->dir : "/");
         ftp_send(sess, msg);
         return FTP_CMD_PWD;
     }
@@ -163,11 +204,11 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
     if (re_include(req, "^(LIST|NLST)\\>", REG_ICASE)) {
         state->msg_ready = "150 Here comes the directory listing.";
         state->msg_ok = "226 Directory send OK.";
-        sprintf(arg, "-l %s", req + 4);
+        sprintf(cmd, "ls -l %s", real_path(state, req_arg(req)));
         if (toupper(req[0]) == 'N') {
-            arg[1] = '1';
+            strchr(cmd, '-')[1] = '1';
         }
-        state->arg = arg;
+        state->arg = cmd;
         if (state->port_addr != NULL) {
             if (0 != ftp_connect(sess, state, ftp_send_list)) {
                 ftp_send(sess, "425 Failed to establish connection.");
@@ -181,13 +222,10 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
         } else {
             ftp_send(sess, "425 Use PORT or PASV first.");
         }
+        state->arg = NULL;
         return FTP_CMD_LIST;
     }
 
-    if (re_include(req, "^NLST\\>", REG_ICASE)) {
-        ftp_send(sess, "502 Command not implemented.");
-        return FTP_CMD_NLST;
-    }
     if (re_include(req, "^SITE\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_SITE;

@@ -13,7 +13,7 @@ void connection_handler(int conn) {
     char dir[PATH_MAX];
     struct ftp_state state = {0};
     state.pasv_fd = -1;
-    state.dir = strcpy(dir, "/");
+    state.dir = strcpy(dir, "");
     ftp_send(conn, "200 FTP server is ready.");
     while (1) {
         int pos = 0;
@@ -58,6 +58,7 @@ int main(int argc, char** argv) {
         { "root", 1, NULL, 'r' },
         { "port", 1, NULL, 'p' },
     };
+    strcpy(root_dir, "/tmp");
     while (1) {
         int opt = getopt_long(argc, argv, "", opts, NULL);
         if (opt == -1) {
@@ -65,7 +66,7 @@ int main(int argc, char** argv) {
         }
         switch (opt) {
         case 'r':
-            strncpy(root_dir, optarg, sizeof root_dir - 1);
+            str_chomp(strncpy(root_dir, optarg, sizeof root_dir - 1), '/');
             break;
         case 'p':
             port = atoi(optarg);
