@@ -38,6 +38,6 @@
 #define FTP_CMD_HELP 32
 #define FTP_CMD_NOOP 33
 
-int ftp_request_handler(int sess, const char* cmd, struct ftp_state* state);
+int ftp_request_handler(const char* cmd, struct ftp_state* state);
 
 #endif

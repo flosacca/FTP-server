@@ -7,7 +7,17 @@
 
 extern char root_dir[];
 
-static inline uint8_t* req_addr(const char* req) {
+static inline char* real_path(struct ftp_state* state, const char* path) {
+    static char s[PATH_MAX];
+    if (path[0] == '/') {
+        sprintf(s, "%s%s", root_dir, path);
+    } else {
+        sprintf(s, "%s%s/%s", root_dir, state->dir, path);
+    }
+    return s;
+}
+
+static uint8_t* req_addr(const char* req) {
     static uint8_t a[6];
     regmatch_t m[7];
     re_match(req, "^[^ ]+\\> .*\\<([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+)\\>", 7, m, 0);
@@ -20,7 +30,7 @@ static inline uint8_t* req_addr(const char* req) {
     return a;
 }
 
-static inline const char* req_arg(const char* req) {
+static const char* req_arg(const char* req) {
     regmatch_t m[2];
     const char* s = "";
     if (re_match(req, "^[^ ]+\\> *([^ ].*)", 2, m, 0)) {
@@ -29,19 +39,26 @@ static inline const char* req_arg(const char* req) {
     return s;
 }
 
-static inline char* real_path(struct ftp_state* state, const char* path) {
-    static char s[PATH_MAX];
-    if (path[0] == '/') {
-        sprintf(s, "%s%s", root_dir, path);
+static int ftp_transfer(struct ftp_state* state) {
+    if (state->port_addr != NULL) {
+        if (0 != ftp_connect(state)) {
+            ftp_send(state->sess, "425 Failed to establish connection.");
+        }
+        state->port_addr = NULL;
+    } else if (state->pasv_fd != -1) {
+        if (0 != ftp_accept(state)) {
+            ftp_send(state->sess, "425 Failed to establish connection.");
+        }
+        state->pasv_fd = -1;
     } else {
-        sprintf(s, "%s%s/%s", root_dir, state->dir, path);
+        ftp_send(state->sess, "425 Use PORT or PASV first.");
     }
-    return s;
 }
 
-int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
+int ftp_request_handler(const char* req, struct ftp_state* state) {
     char msg[PATH_MAX + 128];
     char cmd[PATH_MAX + 128];
+    int sess = state->sess;
 
     if (re_include(req, "^USER\\>", REG_ICASE)) {
         if (re_include(req, "^[^ ]+\\>( anonymous\\>|.*)?", 0)) {
@@ -66,6 +83,9 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^QUIT\\>", REG_ICASE)) {
+        if (state->pasv_fd != -1) {
+            close(state->pasv_fd);
+        }
         return FTP_CMD_QUIT;
     }
 
@@ -158,7 +178,12 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^RETR\\>", REG_ICASE)) {
-        ftp_send(sess, "502 Command not implemented.");
+        state->msg_ready = "150 Opening data connection.";
+        state->msg_ok = "226 Transfer complete.";
+        state->msg_error = "550 Failed to open file.";
+        state->ready = ftp_send_file;
+        state->arg = real_path(state, req_arg(req));
+        ftp_transfer(state);
         return FTP_CMD_RETR;
     }
 
@@ -224,27 +249,16 @@ int ftp_request_handler(int sess, const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^(LIST|NLST)\\>", REG_ICASE)) {
-        state->msg_ready = "150 Here comes the directory listing.";
-        state->msg_ok = "226 Directory send OK.";
         sprintf(cmd, "ls -l %s", real_path(state, req_arg(req)));
         if (toupper(req[0]) == 'N') {
             strchr(cmd, '-')[1] = '1';
         }
+        state->msg_ready = "150 Here comes the directory listing.";
+        state->msg_ok = "226 Directory send OK.";
+        state->msg_error = NULL;
+        state->ready = ftp_send_list;
         state->arg = cmd;
-        if (state->port_addr != NULL) {
-            if (0 != ftp_connect(sess, state, ftp_send_list)) {
-                ftp_send(sess, "425 Failed to establish connection.");
-            }
-            state->port_addr = NULL;
-        } else if (state->pasv_fd != -1) {
-            if (0 != ftp_accept(sess, state, ftp_send_list)) {
-                ftp_send(sess, "425 Failed to establish connection.");
-            }
-            state->pasv_fd = -1;
-        } else {
-            ftp_send(sess, "425 Use PORT or PASV first.");
-        }
-        state->arg = NULL;
+        ftp_transfer(state);
         return FTP_CMD_LIST;
     }
 

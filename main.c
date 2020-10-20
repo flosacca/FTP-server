@@ -11,9 +11,9 @@ char root_dir[PATH_MAX];
 void connection_handler(int conn) {
     char buf[PIPE_BUF];
     char dir[PATH_MAX];
-    struct ftp_state state = {0};
+    strcpy(dir, "");
+    struct ftp_state state = { conn, dir, -1 };
     state.pasv_fd = -1;
-    state.dir = strcpy(dir, "");
     ftp_send(conn, "200 FTP server is ready.");
     while (1) {
         int pos = 0;
@@ -38,7 +38,7 @@ void connection_handler(int conn) {
         }
         fwrite(buf, 1, pos, stdout);
         buf[pos - 2] = 0;
-        int cmd = ftp_request_handler(conn, buf, &state);
+        int cmd = ftp_request_handler(buf, &state);
         if (cmd == FTP_CMD_QUIT || cmd == FTP_CMD_ABOR) {
             break;
         }
