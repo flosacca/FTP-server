@@ -1,7 +1,4 @@
 #include <sys/stat.h>
-#include <arpa/inet.h>
-#include <assert.h>
-#include "util.h"
 #include "sock.h"
 #include "req.h"
 
@@ -145,11 +142,14 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
             close(state->pasv_fd);
         }
         state->pasv_fd = ftp_listen(0);
-        assert(state->pasv_fd != -1);
-        uint32_t a = get_sock_addr(sess);
-        uint16_t p = get_sock_port(state->pasv_fd);
-        sprintf(msg, "227 Entering Passive Mode (%d,%d,%d,%d,%d,%d).", a >> 24, a >> 16 & 255, a >> 8 & 255, a & 255, p >> 8, p & 255);
-        ftp_send(sess, msg);
+        if (state->pasv_fd != -1) {
+            uint32_t a = get_sock_addr(sess);
+            uint16_t p = get_sock_port(state->pasv_fd);
+            sprintf(msg, "227 Entering Passive Mode (%d,%d,%d,%d,%d,%d).", a >> 24, a >> 16 & 255, a >> 8 & 255, a & 255, p >> 8, p & 255);
+            ftp_send(sess, msg);
+        } else {
+            ftp_send(sess, "451 PASV command failed.");
+        }
         return FTP_CMD_PASV;
     }
 
@@ -175,7 +175,7 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
     if (re_include(req, "^RETR\\>", REG_ICASE)) {
         state->msg_ready = "150 Opening data connection.";
         state->msg_ok = "226 Transfer complete.";
-        state->msg_error = "550 Failed to open file.";
+        state->msg_err[0] = "550 Failed to open file.";
         state->ready = ftp_send_file;
         state->arg = real_path(state, ftp_req_arg(req));
         ftp_transfer(state);
@@ -185,7 +185,7 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
     if (re_include(req, "^STOR\\>", REG_ICASE)) {
         state->msg_ready = "150 Ok to send data.";
         state->msg_ok = "226 Transfer complete.";
-        state->msg_error = "553 Could not create file.";
+        state->msg_err[0] = "553 Could not create file.";
         state->ready = ftp_recv_file;
         state->arg = real_path(state, ftp_req_arg(req));
         ftp_transfer(state);
@@ -288,7 +288,7 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
         }
         state->msg_ready = "150 Here comes the directory listing.";
         state->msg_ok = "226 Directory send OK.";
-        state->msg_error = NULL;
+        state->msg_err[0] = NULL;
         state->ready = ftp_send_list;
         state->arg = cmd;
         ftp_transfer(state);

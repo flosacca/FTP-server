@@ -1,5 +1,5 @@
-#ifndef FTP_CMD_H
-#define FTP_CMD_H
+#ifndef CMD_H
+#define CMD_H
 
 #include "def.h"
 

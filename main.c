@@ -1,8 +1,6 @@
-#include <sys/socket.h>
 #include <pthread.h>
 #include <getopt.h>
 #include <assert.h>
-#include "util.h"
 #include "sock.h"
 #include "req.h"
 
@@ -79,7 +77,10 @@ int main(int argc, char** argv) {
     }
 
     int serv = ftp_listen(port);
-    assert(serv != -1);
+    if (serv == -1) {
+        fputs("Failed to start server.\n", stderr);
+        exit(1);
+    }
     pthread_attr_t attr;
     assert(0 == pthread_attr_init(&attr));
     while (1) {
