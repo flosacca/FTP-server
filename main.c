@@ -39,6 +39,10 @@ void connection_handler(int conn) {
         fwrite(buf, 1, pos, stdout);
         buf[pos - 2] = 0;
         int cmd = ftp_request_handler(buf, &state);
+        if (cmd == FTP_CMD_NONE) {
+            ftp_send(conn, "500 Unknown command.");
+            continue;
+        }
         if (cmd == FTP_CMD_QUIT || cmd == FTP_CMD_ABOR) {
             break;
         }

@@ -17,7 +17,7 @@ static inline char* real_path(struct ftp_state* state, const char* path) {
     return s;
 }
 
-static uint8_t* req_addr(const char* req) {
+static uint8_t* ftp_req_addr(const char* req) {
     static uint8_t a[6];
     regmatch_t m[7];
     re_match(req, "^[^ ]+\\> .*\\<([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+)\\>", 7, m, 0);
@@ -30,7 +30,7 @@ static uint8_t* req_addr(const char* req) {
     return a;
 }
 
-static const char* req_arg(const char* req) {
+static const char* ftp_req_arg(const char* req) {
     regmatch_t m[2];
     const char* s = "";
     if (re_match(req, "^[^ ]+\\> *([^ ].*)", 2, m, 0)) {
@@ -101,17 +101,12 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
 
     if (re_include(req, "^CWD\\>", REG_ICASE)) {
         struct stat st;
-        const char* path = req_arg(req);
-        if (path[0]) {
-            path = real_path(state, path);
-            if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
-                str_chomp(strcpy(state->dir, path + strlen(root_dir)), '/');
-                ftp_send(sess, "250 Directory successfully changed.");
-            } else {
-                ftp_send(sess, "550 Failed to change directory.");
-            }
+        const char* path = real_path(state, ftp_req_arg(req));
+        if (0 == stat(path, &st) && S_ISDIR(st.st_mode)) {
+            str_chomp(strcpy(state->dir, path + strlen(root_dir)), '/');
+            ftp_send(sess, "250 Directory successfully changed.");
         } else {
-            ftp_send(sess, "501 You must specify a directory.");
+            ftp_send(sess, "550 Failed to change directory.");
         }
         return FTP_CMD_CWD;
     }
@@ -137,7 +132,7 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
 
     if (re_include(req, "^PORT\\>", REG_ICASE)) {
         static struct sockaddr_in addr = {AF_INET};
-        uint8_t* a = req_addr(req);
+        uint8_t* a = ftp_req_addr(req);
         addr.sin_port = htons(a[4] << 8 | a[5]);
         addr.sin_addr.s_addr = htonl(a[0] << 24 | a[1] << 16 | a[2] << 8 | a[3]);
         state->port_addr = &addr;
@@ -182,7 +177,7 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
         state->msg_ok = "226 Transfer complete.";
         state->msg_error = "550 Failed to open file.";
         state->ready = ftp_send_file;
-        state->arg = real_path(state, req_arg(req));
+        state->arg = real_path(state, ftp_req_arg(req));
         ftp_transfer(state);
         return FTP_CMD_RETR;
     }
@@ -213,12 +208,34 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^RNFR\\>", REG_ICASE)) {
-        ftp_send(sess, "502 Command not implemented.");
+        struct stat st;
+        const char* path = real_path(state, ftp_req_arg(req));
+        if (0 == stat(path, &st)) {
+            if (state->old_path != NULL) {
+                free(state->old_path);
+            }
+            state->old_path = malloc(strlen(path) + 1);
+            strcpy(state->old_path, path);
+            ftp_send(sess, "350 Ready for RNTO.");
+        } else {
+            ftp_send(sess, "550 RNFR command failed.");
+        }
         return FTP_CMD_RNFR;
     }
 
     if (re_include(req, "^RNTO\\>", REG_ICASE)) {
-        ftp_send(sess, "502 Command not implemented.");
+        const char* path = real_path(state, ftp_req_arg(req));
+        if (state->old_path == NULL) {
+            ftp_send(sess, "503 RNFR required first.");
+        } else {
+            if (0 == rename(state->old_path, path)) {
+                ftp_send(sess, "250 Rename successful.");
+            } else {
+                ftp_send(sess, "550 Rename failed.");
+            }
+            free(state->old_path);
+            state->old_path = NULL;
+        }
         return FTP_CMD_RNTO;
     }
 
@@ -233,14 +250,25 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^RMD\\>", REG_ICASE)) {
-        ftp_send(sess, "502 Command not implemented.");
+        const char* path = real_path(state, ftp_req_arg(req));
+        if (0 == rmdir(path)) {
+            ftp_send(sess, "250 Remove directory operation successful.");
+        } else {
+            ftp_send(sess, "550 Remove directory operation failed.");
+        }
         return FTP_CMD_RMD;
     }
 
     if (re_include(req, "^MKD\\>", REG_ICASE)) {
-        ftp_send(sess, "502 Command not implemented.");
+        const char* path = real_path(state, ftp_req_arg(req));
+        if (0 == mkdir(path, -1)) {
+            ftp_send(sess, "257 Create directory operation successful.");
+        } else {
+            ftp_send(sess, "550 Create directory operation failed.");
+        }
         return FTP_CMD_MKD;
     }
+
 
     if (re_include(req, "^PWD\\>", REG_ICASE)) {
         sprintf(msg, "257 \"%s\" is the current directory.", state->dir[0] ? state->dir : "/");
@@ -249,7 +277,7 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^(LIST|NLST)\\>", REG_ICASE)) {
-        sprintf(cmd, "ls -l %s", real_path(state, req_arg(req)));
+        sprintf(cmd, "ls -l %s", real_path(state, ftp_req_arg(req)));
         if (toupper(req[0]) == 'N') {
             strchr(cmd, '-')[1] = '1';
         }

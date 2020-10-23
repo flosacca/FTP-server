@@ -14,6 +14,7 @@ struct ftp_state {
     const char* msg_error;
     int (*ready)(int, struct ftp_state*);
     void* arg;
+    char* old_path;
 };
 
 #endif
