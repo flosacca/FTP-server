@@ -183,7 +183,12 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^STOR\\>", REG_ICASE)) {
-        ftp_send(sess, "502 Command not implemented.");
+        state->msg_ready = "150 Ok to send data.";
+        state->msg_ok = "226 Transfer complete.";
+        state->msg_error = "553 Could not create file.";
+        state->ready = ftp_recv_file;
+        state->arg = real_path(state, ftp_req_arg(req));
+        ftp_transfer(state);
         return FTP_CMD_STOR;
     }
 

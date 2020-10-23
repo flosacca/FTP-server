@@ -54,16 +54,17 @@ static inline int ftp_accept(struct ftp_state* state) {
 }
 
 #define _FTP_SEND_INPUT \
+    if (f == NULL) { \
+        ftp_send(state->sess, state->msg_error); \
+        return -1; \
+    } \
+    ftp_send(state->sess, state->msg_ready); \
     int r = 0; \
     do { \
-        if (f == NULL) { \
-            ftp_send(state->sess, state->msg_error); \
-            return -1; \
-        } \
-        ftp_send(state->sess, state->msg_ready); \
         int n; \
         while (n = fread(buf, 1, sizeof buf, f)) { \
-            if (r = ftp_write(data, buf, n)) { \
+            r = ftp_write(data, buf, n); \
+            if (r == -1) { \
                 break; \
             } \
         } \
@@ -83,6 +84,25 @@ static int ftp_send_file(int data, struct ftp_state* state) {
     _FTP_SEND_INPUT;
     fclose(f);
     return r;
+}
+
+static int ftp_recv_file(int data, struct ftp_state* state) {
+    char buf[PIPE_BUF];
+    FILE* f = fopen((char*)state->arg, "w");
+    if (f == NULL) {
+        ftp_send(state->sess, state->msg_error);
+        return -1;
+    }
+    ftp_send(state->sess, state->msg_ready);
+    int n;
+    while (n = ftp_read(data, buf, sizeof buf)) {
+        if (n == -1) {
+            break;
+        }
+        fwrite(buf, 1, n, f);
+    }
+    fclose(f);
+    return n;
 }
 
 #endif

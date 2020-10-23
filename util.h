@@ -59,4 +59,19 @@ static int ftp_send(int fd, const char* s) {
     return r;
 }
 
+static int ftp_read(int fd, char* buf, int size) {
+    int i = 0;
+    while (i < size) {
+        int n = read(fd, buf + i, size - i);
+        if (n == -1) {
+            return -1;
+        }
+        if (n == 0) {
+            break;
+        }
+        i += n;
+    }
+    return i;
+}
+
 #endif
