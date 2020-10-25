@@ -71,7 +71,7 @@ int ftp_accept(struct ftp_state* state) {
         } \
     } while (0)
 
-int ftp_send_list(int data, struct ftp_state* state) {
+int ftp_send_output(int data, struct ftp_state* state) {
     char buf[PIPE_BUF];
     FILE* f = popen((char*)state->arg, "r");
     _FTP_SEND_DATA;
@@ -82,6 +82,7 @@ int ftp_send_list(int data, struct ftp_state* state) {
 int ftp_send_file(int data, struct ftp_state* state) {
     char buf[PIPE_BUF];
     FILE* f = fopen((char*)state->arg, "r");
+    fseek(f, state->pos, SEEK_SET);
     _FTP_SEND_DATA;
     fclose(f);
     return r;
@@ -89,7 +90,7 @@ int ftp_send_file(int data, struct ftp_state* state) {
 
 int ftp_recv_file(int data, struct ftp_state* state) {
     char buf[PIPE_BUF];
-    FILE* f = fopen((char*)state->arg, "w");
+    FILE* f = fopen((char*)state->arg, state->mode);
     _FTP_RECV_DATA;
     fclose(f);
     return n;

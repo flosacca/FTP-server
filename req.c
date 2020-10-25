@@ -182,24 +182,21 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
         return FTP_CMD_RETR;
     }
 
-    if (re_include(req, "^STOR\\>", REG_ICASE)) {
+    if (re_include(req, "^(STOR|APPE)\\>", REG_ICASE)) {
+        int w = toupper(req[0]) == 'A';
         state->msg_ready = "150 Ok to send data.";
         state->msg_ok = "226 Transfer complete.";
-        state->msg_err[0] = "553 Could not create file.";
+        state->msg_err[0] = "550 Failed to open file.";
         state->ready = ftp_recv_file;
         state->arg = real_path(state, ftp_req_arg(req));
+        state->mode = w ? "a" : "w";
         ftp_transfer(state);
-        return FTP_CMD_STOR;
+        return w ? FTP_CMD_APPE : FTP_CMD_STOR;
     }
 
     if (re_include(req, "^STOU\\>", REG_ICASE)) {
         ftp_send(sess, "502 Command not implemented.");
         return FTP_CMD_STOU;
-    }
-
-    if (re_include(req, "^APPE\\>", REG_ICASE)) {
-        ftp_send(sess, "502 Command not implemented.");
-        return FTP_CMD_APPE;
     }
 
     if (re_include(req, "^ALLO\\>", REG_ICASE)) {
@@ -208,7 +205,12 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^REST\\>", REG_ICASE)) {
-        ftp_send(sess, "502 Command not implemented.");
+        state->pos = atol(ftp_req_arg(req));
+        if (state->pos < 0) {
+            state->pos = 0;
+        }
+        sprintf(msg, "350 Restart position accepted (%ld).", state->pos);
+        ftp_send(sess, msg);
         return FTP_CMD_REST;
     }
 
@@ -282,17 +284,15 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^(LIST|NLST)\\>", REG_ICASE)) {
-        sprintf(cmd, "ls -l %s", real_path(state, ftp_req_arg(req)));
-        if (toupper(req[0]) == 'N') {
-            strchr(cmd, '-')[1] = '1';
-        }
+        int w = toupper(req[0]) == 'N';
+        sprintf(cmd, "ls -%c %s", w ? '1' : 'l', real_path(state, ftp_req_arg(req)));
         state->msg_ready = "150 Here comes the directory listing.";
         state->msg_ok = "226 Directory send OK.";
         state->msg_err[0] = NULL;
-        state->ready = ftp_send_list;
+        state->ready = ftp_send_output;
         state->arg = cmd;
         ftp_transfer(state);
-        return FTP_CMD_LIST;
+        return w ? FTP_CMD_NLST : FTP_CMD_LIST;
     }
 
     if (re_include(req, "^SITE\\>", REG_ICASE)) {

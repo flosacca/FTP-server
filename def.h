@@ -9,12 +9,14 @@ struct ftp_state {
     int user;
     struct sockaddr_in* port_addr;
     int pasv_fd;
+    int (*ready)(int, struct ftp_state*);
+    void* arg;
     const char* msg_ready;
     const char* msg_ok;
     const char* msg_err[2];
-    int (*ready)(int, struct ftp_state*);
-    void* arg;
     char* old_path;
+    const char* mode;
+    long pos;
 };
 
 #endif
