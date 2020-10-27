@@ -9,7 +9,7 @@ static inline char* real_path(struct ftp_state* state, const char* path) {
     if (path[0] == '/') {
         sprintf(s, "%s%s", root_dir, path);
     } else {
-        sprintf(s, "%s%s/%s", root_dir, state->dir, path);
+        sprintf(s, "%s%s/%s", root_dir, state->dir, path[0] == '-' ? "" : path);
     }
     return s;
 }
@@ -50,6 +50,7 @@ static int ftp_transfer(struct ftp_state* state) {
     } else {
         ftp_send(state->sess, "425 Use PORT or PASV first.");
     }
+    return 0;
 }
 
 int ftp_request_handler(const char* req, struct ftp_state* state) {
@@ -58,7 +59,7 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
     int sess = state->sess;
 
     if (re_include(req, "^USER\\>", REG_ICASE)) {
-        if (re_include(req, "^[^ ]+\\>( anonymous\\>|.*)?", 0)) {
+        if (re_include(req, "^[^ ]+\\> anonymous\\>", 0)) {
             state->user = 0;
             ftp_send(sess, "331 Specifiy an email address as password.");
         } else {
@@ -83,6 +84,7 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
         if (state->pasv_fd != -1) {
             close(state->pasv_fd);
         }
+        ftp_send(sess, "221 Goodbye.");
         return FTP_CMD_QUIT;
     }
 
@@ -154,7 +156,7 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
     }
 
     if (re_include(req, "^TYPE\\>", REG_ICASE)) {
-        if (re_include(req, "^TYPE I\\>", REG_ICASE)) {
+        if (re_include(req, "^TYPE .\\>", REG_ICASE)) {
             ftp_send(sess, "200 Type set to I.");
         } else {
             ftp_send(sess, "504 Type must be set to I.");
@@ -285,7 +287,7 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
 
     if (re_include(req, "^(LIST|NLST)\\>", REG_ICASE)) {
         int w = toupper(req[0]) == 'N';
-        sprintf(cmd, "ls -%c %s", w ? '1' : 'l', real_path(state, ftp_req_arg(req)));
+        sprintf(cmd, "ls -%c %s | tail +2", w ? '1' : 'l', real_path(state, ftp_req_arg(req)));
         state->msg_ready = "150 Here comes the directory listing.";
         state->msg_ok = "226 Directory send OK.";
         state->msg_err[0] = NULL;
@@ -319,4 +321,6 @@ int ftp_request_handler(const char* req, struct ftp_state* state) {
         ftp_send(sess, "200 NOOP ok.");
         return FTP_CMD_NOOP;
     }
+
+    return FTP_CMD_NONE;
 }

@@ -2,14 +2,14 @@ SRC_PATH = .
 SRCS     = $(wildcard $(SRC_PATH)/*.c)
 OBJS     = $(SRCS:.c=.o)
 HEADERS  = $(wildcard $(SRC_PATH)/*.h)
-TARGET   = main
+TARGET   = server
 
 CC      = gcc
 LIBS    =
 LDFLAGS = -lpthread
 DEFINES = -DDEBUG
 INCLUDE = -I.
-CFLAGS  = -O2 -Werror-implicit-function-declaration $(DEFINES)
+CFLAGS  = -O2 -Wall $(DEFINES)
 
 all: $(TARGET)
 

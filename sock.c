@@ -5,7 +5,7 @@
 int ftp_listen(uint16_t port) {
     int serv = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     ASSERT(serv != -1);
-    struct sockaddr_in addr = {AF_INET, htons(port), htonl(INADDR_ANY)};
+    struct sockaddr_in addr = { AF_INET, htons(port), { htonl(INADDR_ANY) } };
     ASSERT(0 == bind(serv, (struct sockaddr*)&addr, sizeof addr));
     ASSERT(0 == listen(serv, 5));
     return serv;
@@ -51,7 +51,7 @@ int ftp_accept(struct ftp_state* state) {
     int r = 0; \
     do { \
         int n; \
-        while (n = fread(buf, 1, sizeof buf, f)) { \
+        while ((n = fread(buf, 1, sizeof buf, f))) { \
             r = ftp_write(data, buf, n); \
             if (r == -1) { \
                 break; \
@@ -63,7 +63,7 @@ int ftp_accept(struct ftp_state* state) {
     _FTP_OPEN_FILE; \
     int n; \
     do { \
-        while (n = ftp_read(data, buf, sizeof buf)) { \
+        while ((n = ftp_read(data, buf, sizeof buf))) { \
             if (n == -1) { \
                 break; \
             } \
